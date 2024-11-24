@@ -13,8 +13,15 @@ class EDSFile:
             key = key.encode()
         return hashlib.sha256(key).digest()
 
+    def _generate_key_stream(self, length):
+        key_stream = bytearray()
+        while len(key_stream) < length:
+            key_stream.extend(hashlib.sha256(self.key + len(key_stream).to_bytes(4, "big")).digest())
+        return bytes(key_stream[:length])
+
     def _xor_encrypt_decrypt(self, data):
-        return bytes(a ^ b for a, b in zip(data, self.key * (len(data) // len(self.key) + 1)))
+        key_stream = self._generate_key_stream(len(data))
+        return bytes(a ^ b for a, b in zip(data, key_stream))
 
     def read(self):
         try:
