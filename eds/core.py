@@ -1,42 +1,43 @@
-import json, hashlib
-from eds.exceptions import DecryptFileError
+import hashlib
+import pickle
 
+from .exceptions import DecryptFileError, EncryptFileError
+
+class XORCrypter:
+    def __init__(self, key: str):
+        self.key = self.format_key(key)
+
+    @staticmethod
+    def format_key(key: str) -> bytes:
+        return hashlib.sha256(key.encode()).digest()
+
+    def crypt(self, data: bytes) -> bytes:
+        return bytes([b ^ self.key[i % len(self.key)] for i, b in enumerate(data)])
 
 class EDSFile:
     def __init__(self, filename: str, key: str):
-        self.filename = filename
-        self.key = self._format_key(key=key)
-
-    @staticmethod
-    def _format_key(key: str):
-        if isinstance(key, str):
-            key = key.encode()
-        return hashlib.sha256(key).digest()
-
-    def _generate_key_stream(self, length):
-        key_stream = bytearray()
-        while len(key_stream) < length:
-            key_stream.extend(hashlib.sha256(self.key + len(key_stream).to_bytes(4, "big")).digest())
-        return bytes(key_stream[:length])
-
-    def _xor_encrypt_decrypt(self, data):
-        key_stream = self._generate_key_stream(len(data))
-        return bytes(a ^ b for a, b in zip(data, key_stream))
+        self.filename = str(filename)
+        self.crypter = XORCrypter(key=str(key))
 
     def read(self):
         try:
             with open(self.filename, "rb") as file:
                 encrypted_data = file.read()
+                if not encrypted_data:
+                    raise DecryptFileError("File is empty")
+                decrypted_data = self.crypter.crypt(encrypted_data)
+                return pickle.loads(decrypted_data)
+        except (pickle.UnpicklingError, UnicodeDecodeError, EOFError) as e:
+            raise DecryptFileError from e
 
-            decrypted_data = self._xor_encrypt_decrypt(encrypted_data)
-            return json.loads(decrypted_data)
+    def write(self, new_data: object):
+        if new_data is None:
+            raise EncryptFileError("'None' is not writeable.")
 
-        except UnicodeDecodeError:
-            raise DecryptFileError
-
-    def write(self, data: str or dict or list):
-        json_data = json.dumps(data, indent=2).encode()
-        encrypted_data = self._xor_encrypt_decrypt(json_data)
-
-        with open(self.filename, "wb") as file:
-            file.write(encrypted_data)
+        try:
+            serialized_data = pickle.dumps(new_data)
+            encrypted_data = self.crypter.crypt(serialized_data)
+            with open(self.filename, "wb") as file:
+                file.write(encrypted_data)
+        except (TypeError, pickle.PicklingError) as e:
+            raise EncryptFileError from e

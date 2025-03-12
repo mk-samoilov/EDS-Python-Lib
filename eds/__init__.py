@@ -1,1 +1,1 @@
-from eds.core import EDSFile
+from .core import EDSFile, XORCrypter

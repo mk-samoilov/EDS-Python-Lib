@@ -1,6 +1,6 @@
 from eds import EDSFile
 
-file = EDSFile(filename="test.eds", key="qwe123")
+file = EDSFile(filename="exemple.eds", key="qwe123")
 
-file.write(data="test")
+file.write(new_data="exemple data")
 print(file.read())
